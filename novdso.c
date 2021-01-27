@@ -1,15 +1,22 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <elf.h>
 
 #include <sys/ptrace.h>
 #include <sys/wait.h>
-#include <sys/reg.h>
 
-/* from <asm/auxvec.h> */
-#define AT_NULL 0
-#define AT_IGNORE 1
-#define AT_SYSINFO_EHDR 33
+#if defined(__x86_64__)
+#  include <sys/reg.h>
+#elif defined(__aarch64__)
+#  include <linux/uio.h>
+#  include <asm/ptrace.h>
+#elif defined(__arm__)
+#  error "not supported arm32 yet."
+#else
+#  error "not supported architecture."
+#endif
+
 
 /*
  * removeVDSO() alters the auxiliary table of a newly created process in order
@@ -20,7 +27,20 @@ void removeVDSO(int pid) {
   int zeroCount;
   long val;
 
+#if defined(__x86_64__)
   pos = (size_t)ptrace(PTRACE_PEEKUSER, pid, sizeof(long) * RSP, NULL);
+#elif defined(__aarch64__)
+  struct user_pt_regs regs;
+  struct iovec io;
+
+  io.iov_base = &regs;
+  io.iov_len = sizeof(regs);
+  if (ptrace(PTRACE_GETREGSET, pid, (void*)NT_PRSTATUS, &io)==-1) {
+    fprintf(stderr, "ptrace(PTRACE_GETREGSET,...) failed\n");
+    exit(1);
+  }
+  pos = regs.sp;
+#endif
 
   /* skip to auxiliary vector */
   zeroCount = 0;

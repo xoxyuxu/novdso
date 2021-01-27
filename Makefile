@@ -1,4 +1,4 @@
-novdso:
+novdso: novdso.c
 	cc -Wall -Wextra -Werror -pedantic-errors -o novdso novdso.c
 
 clean:
